@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>News Query</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            background-color: #f9f9f9;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .timer {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .search-bar {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        input[type="text"] {
+            width: 60%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            margin-left: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .card {
+            background: white;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 18px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .card-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        a {
+            color: #007bff;
+        }
+
+        hr {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <div class="timer">Response Time: <span id="timerValue">0.0</span> s</div>
+        </div>
+
+        <form id="queryForm" class="search-bar">
+            {% csrf_token %}
+            <input type="text" id="queryInput" name="query" placeholder="Enter your query" required />
+            <button type="submit">Submit</button>
+        </form>
+
+        <div id="loading" class="loading">Loading...</div>
+
+        <div id="resultContainer"></div>
+    </div>
+
+    <script>
+        let timerInterval;
+        let startTime;
+    
+        function startTimer() {
+            const timerDisplay = document.getElementById('timerValue');
+            startTime = performance.now();
+            timerDisplay.textContent = '0.0';
+    
+            timerInterval = setInterval(() => {
+                const now = performance.now();
+                const elapsed = ((now - startTime) / 1000).toFixed(1);
+                timerDisplay.textContent = elapsed;
+            }, 100);
+        }
+    
+        function stopTimer() {
+            clearInterval(timerInterval);
+            const endTime = performance.now();
+            const finalElapsed = ((endTime - startTime) / 1000).toFixed(2);
+            document.getElementById('timerValue').textContent = finalElapsed;
+        }
+    
+        document.getElementById('queryForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+    
+            const query = document.getElementById('queryInput').value;
+            const loading = document.getElementById('loading');
+            const resultContainer = document.getElementById('resultContainer');
+    
+            // Reset UI
+            resultContainer.innerHTML = '';
+            loading.style.display = 'block';
+    
+            // Start the live timer
+            startTimer();
+    
+            fetch('/app1/print/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ Query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                stopTimer();
+                loading.style.display = 'none';
+    
+                if (Array.isArray(data)) {
+                    data.forEach((item) => {
+                        const card = document.createElement('div');
+                        card.className = 'card';
+    
+                        const sentiment = item.result[0]?.toLowerCase() || 'unknown';
+    
+                        card.innerHTML = `
+                            <div class="card-title">
+                                <a href="${item.news_link}" target="_blank">${item.news_link}</a>
+                            </div>
+                            <p><strong>Summary:</strong> ${item.summary || 'N/A'}</p>
+                            <p><strong>Sentiment:</strong> ${sentiment}</p>
+                            <p><strong>Confidence Score:</strong> ${item.confidence_Score}</p>
+                            <p><strong>Publish Date:</strong> ${item.publish_date || 'N/A'}</p>
+                        `;
+    
+                        resultContainer.appendChild(card);
+                    });
+                } else {
+                    resultContainer.innerHTML = `<p>Error: Unexpected response</p>`;
+                }
+            })
+            .catch(error => {
+                stopTimer();
+                loading.style.display = 'none';
+                resultContainer.innerHTML = `<p>Error fetching results: ${error}</p>`;
+            });
+        });
+    </script>
+</body>
+</html>
